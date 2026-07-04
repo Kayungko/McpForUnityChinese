@@ -156,6 +156,7 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
 
             // Client Configuration 区块动态状态文本
             ["Syncing..."] = "同步中...",
+            ["Checking..."] = "检查中...",
             ["Configuration steps not available for this client."] = "此客户端暂无可用的配置步骤。",
 
             // Tooltip（悬浮提示）
@@ -230,6 +231,31 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
                 @"$""将有 {$1} / {$2} 个工具注册到已连接的客户端。"""),
             (new Regex(@"\$""Session Active \(\{(.+?)\}\)"""),
                 @"$""会话进行中 ({$1})"""),
+
+            // 客户端配置 - 传输方式不匹配提示（连接页 transportMismatchText，插值 + 转义引号，跨行拼接）
+            // 保留传输方式技术名（stdio / HTTP Local / HTTP Remote）不翻译，只译周围文字。
+            (new Regex(@"\$""⚠ \{(.+?)\} is configured for \\""\{(.+?)\}\\"" but server is set to \\""\{(.+?)\}\\""\. """),
+                @"$""⚠ {$1} 当前配置为 \""{$2}\""，但服务器设为 \""{$3}\""。 """),
+            (new Regex(@"""Click \\""Configure\\"" in Client Configuration to update\."""),
+                @"""点击客户端配置中的 \""配置\"" 进行更新。"""),
+
+            // 客户端配置 - 状态 tag（GetStatusDisplayString switch，带枚举成员前缀精确匹配，避免误伤逻辑 switch）
+            (new Regex(@"McpStatus\.NotConfigured => ""Not Configured"""), @"McpStatus.NotConfigured => ""未配置"""),
+            (new Regex(@"McpStatus\.Configured => ""Configured"""), @"McpStatus.Configured => ""已配置"""),
+            (new Regex(@"McpStatus\.Running => ""Running"""), @"McpStatus.Running => ""运行中"""),
+            (new Regex(@"McpStatus\.Connected => ""Connected"""), @"McpStatus.Connected => ""已连接"""),
+            (new Regex(@"McpStatus\.IncorrectPath => ""Incorrect Path"""), @"McpStatus.IncorrectPath => ""路径错误"""),
+            (new Regex(@"McpStatus\.CommunicationError => ""Communication Error"""), @"McpStatus.CommunicationError => ""通信错误"""),
+            (new Regex(@"McpStatus\.NoResponse => ""No Response"""), @"McpStatus.NoResponse => ""无响应"""),
+            (new Regex(@"McpStatus\.UnsupportedOS => ""Unsupported OS"""), @"McpStatus.UnsupportedOS => ""不支持的操作系统"""),
+            (new Regex(@"McpStatus\.MissingConfig => ""Missing MCPForUnity Config"""), @"McpStatus.MissingConfig => ""缺少 MCPForUnity 配置"""),
+            (new Regex(@"McpStatus\.Error => ""Error"""), @"McpStatus.Error => ""错误"""),
+            (new Regex(@"McpStatus\.VersionMismatch => ""Version Mismatch"""), @"McpStatus.VersionMismatch => ""版本不匹配"""),
+            (new Regex(@"_ => ""Unknown"","), @"_ => ""未知"","),
+
+            // 客户端配置 - Configure/Unregister 进行中的临时状态（三元表达式，不在 .text 行上）
+            (new Regex(@"\? ""Unregistering\.\.\."" : ""Configuring\.\.\."""),
+                @"? ""取消注册中..."" : ""注册中..."""),
         };
     }
 }
