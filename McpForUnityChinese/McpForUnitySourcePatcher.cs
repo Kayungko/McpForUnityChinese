@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -61,6 +62,61 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
             return Directory.Exists(windowsFolder);
         }
 
+        /// <summary>
+        /// 版本校验改为"主版本号前缀匹配"而非逐条精确匹配：
+        /// 包若持续跟踪 upstream 的 main/beta 分支，版本号会随每次 commit 漂移（如 10.1.1-beta.1 -> 10.1.1-beta.2），
+        /// 逐条精确匹配会导致补丁几乎每次都因版本号不同而被跳过。只要主版本号（第一个 "." 之前的数字）
+        /// 命中 SupportedVersions 中任意一条已核对过的版本，就认为跨小版本/beta 兼容，允许应用补丁；
+        /// 未被字典覆盖的新增文案会原样保留英文，不会报错，风险可控。
+        /// </summary>
+        internal static bool IsVersionSupported(string version, out string matchedMajor)
+        {
+            matchedMajor = null;
+            if (string.IsNullOrEmpty(version))
+            {
+                return false;
+            }
+
+            if (McpForUnityPatchData.SupportedVersions.Contains(version))
+            {
+                matchedMajor = GetMajorVersion(version);
+                return true;
+            }
+
+            string major = GetMajorVersion(version);
+            if (major == null)
+            {
+                return false;
+            }
+
+            if (GetSupportedMajors().Contains(major))
+            {
+                matchedMajor = major;
+                return true;
+            }
+
+            return false;
+        }
+
+        internal static IEnumerable<string> GetSupportedMajors()
+        {
+            return McpForUnityPatchData.SupportedVersions
+                .Select(GetMajorVersion)
+                .Where(m => m != null)
+                .Distinct();
+        }
+
+        private static string GetMajorVersion(string version)
+        {
+            if (string.IsNullOrEmpty(version))
+            {
+                return null;
+            }
+
+            int dotIndex = version.IndexOf('.');
+            return dotIndex > 0 ? version.Substring(0, dotIndex) : version;
+        }
+
         internal static void ApplyPatch(bool force)
         {
             if (!TryFindWindowsFolder(out var windowsFolder, out var version))
@@ -68,11 +124,19 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
                 return;
             }
 
-            if (!McpForUnityPatchData.SupportedVersions.Contains(version))
+            if (!IsVersionSupported(version, out var matchedMajor))
             {
                 Debug.LogWarning(
-                    $"[MCP for Unity 汉化补丁] 检测到包版本 {version}，未在已验证列表中（{string.Join(", ", McpForUnityPatchData.SupportedVersions)}），本次跳过，保留英文原文。");
+                    $"[MCP for Unity 汉化补丁] 检测到包版本 {version}，主版本号不在已验证范围内（已验证主版本：{string.Join(", ", GetSupportedMajors())}），本次跳过，保留英文原文。");
                 return;
+            }
+
+            if (!McpForUnityPatchData.SupportedVersions.Contains(version))
+            {
+                // 主版本号命中但具体版本未逐条核对过（例如包持续跟踪 main 分支、版本号随每次 commit 漂移）：
+                // 放行应用补丁，同一大版本内的措辞通常兼容，未覆盖的新增文案会原样保留英文，不会报错。
+                Debug.Log(
+                    $"[MCP for Unity 汉化补丁] 包版本 {version} 未逐条核对，但主版本号 {matchedMajor} 已验证，按同大版本兼容规则应用补丁。");
             }
 
             string markerPath = Path.Combine(windowsFolder, MarkerFileName);

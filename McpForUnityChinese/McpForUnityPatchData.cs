@@ -8,14 +8,22 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
     /// "MCP for Unity"（com.coplaydev.unity-mcp）源码级汉化补丁的翻译数据。
     /// 只包含数据，不含任何文件读写/正则替换逻辑（逻辑在 McpForUnitySourcePatcher 里）。
     /// 上游改了措辞导致某条译文失效时，直接在这里补一条新的映射即可，不用改补丁引擎代码。
-    /// 上游发新版本时，先核对差异、扩充这里的条目，再在 SupportedVersions 里追加版本号。
+    /// 版本校验按主版本号前缀匹配（见 SupportedVersions 上的说明）：主版本号不变时（如 10.0.x -> 10.1.x）
+    /// 补丁会自动继续生效，只是新增/改名的文案在未补充字典前会保留英文；建议仍按上游发版节奏核对差异、
+    /// 扩充条目，只有主版本号真正跳变（如 10.x -> 11.0.0）时才必须在 SupportedVersions 里追加新条目。
     /// </summary>
     internal static class McpForUnityPatchData
     {
         public const string PackageName = "com.coplaydev.unity-mcp";
 
-        /// <summary>已核对过、确认补丁可以安全应用的包版本。版本不匹配时补丁工具会整体跳过，不做任何修改。</summary>
-        public static readonly string[] SupportedVersions = { "10.0.0" };
+        /// <summary>
+        /// 已核对过、确认补丁可以安全应用的具体包版本。
+        /// 校验规则（见 <see cref="McpForUnitySourcePatcher.IsVersionSupported"/>）按"主版本号前缀"匹配：
+        /// 只要当前包版本的主版本号（第一个 "." 之前的数字）与本列表中任意一条相同，就视为兼容并应用补丁，
+        /// 不要求逐字节匹配完整版本号（用于兼容包持续跟踪 upstream main/beta 分支、版本号随 commit 漂移的场景）。
+        /// 主版本号发生变化（如 10.x -> 11.0.0）时才需要在这里追加一条新的具体版本号。
+        /// </summary>
+        public static readonly string[] SupportedVersions = { "10.0.0", "10.1.1-beta.1" };
 
         /// <summary>
         /// 精确字符串字典：英文原文 -> 中文译文。
@@ -29,6 +37,7 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
             ["Tools"] = "工具",
             ["Resources"] = "资源",
             ["Asset Gen"] = "AI 素材生成",
+            ["Generative"] = "生成", // 10.1.x：assetgen-tab 文案由 "Asset Gen" 改为 "Generative"
             ["Deps"] = "依赖",
             ["Advanced"] = "高级",
 
@@ -205,12 +214,31 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
             ["We found the following MCP clients on your machine. Select which to configure:"] = "在你的电脑上找到了以下 MCP 客户端，请选择要配置的对象:",
             ["Skip"] = "跳过",
             ["Configure Selected"] = "配置所选项",
+            // 10.1.x：依赖状态改版新增
+            ["Available"] = "可用",
+            ["Not available"] = "不可用",
+            ["Install UV Automatically"] = "自动安装 UV",
+            ["Installing UV…"] = "正在安装 UV…",
+            ["Installing uv… this can take a moment."] = "正在安装 uv…，这可能需要一点时间。",
+            ["UV Package Manager"] = "UV 包管理器",
+            ["Next"] = "下一步",
 
             // EditorPrefs 管理器
             ["EditorPrefs Manager"] = "EditorPrefs 管理器",
             ["Manage MCP for Unity EditorPrefs. Useful for development and testing."] = "管理 MCP for Unity 的 EditorPrefs，供开发和测试使用。",
             ["Create"] = "创建",
             ["Cancel"] = "取消",
+            ["Save changes"] = "保存更改", // 10.1.x：EditorPrefItem 保存按钮 tooltip
+            ["Refresh prefs"] = "刷新偏好设置", // 10.1.x：EditorPrefsWindow 刷新按钮 tooltip
+
+            // 10.1.x：Connection 区块新增
+            ["Stop Server"] = "停止服务器",
+            ["The command is not available with the current configuration."] = "当前配置下该命令不可用。",
+
+            // 10.1.x：Advanced / Asset Gen 区块新增（placeholder-text 与 tooltip）
+            ["/path/to/Server or git+https://..."] = "/path/to/Server 或 git+https://...",
+            ["Assets/Screenshots (default)"] = "Assets/Screenshots（默认）",
+            ["The model generate_* uses for this provider when no explicit model is passed."] = "当未显式指定模型时，该服务商 generate_* 使用的模型。",
         };
 
         /// <summary>
@@ -231,6 +259,33 @@ namespace IdelGame.Editor.ThirdPartyPatches.McpForUnityChinese
                 @"$""将有 {$1} / {$2} 个工具注册到已连接的客户端。"""),
             (new Regex(@"\$""Session Active \(\{(.+?)\}\)"""),
                 @"$""会话进行中 ({$1})"""),
+
+            // 10.1.x：更新提示 tooltip（MCPForUnityEditorWindow，两行版本号 + 转义换行符）
+            (new Regex(@"\$""Latest version: v\{(.+?)\}\\nCurrent version: v\{(.+?)\}"""),
+                @"$""最新版本: v{$1}\n当前版本: v{$2}"""),
+
+            // 10.1.x：客户端版本不匹配提示（UpdateVersionMismatchWarning，与传输方式不匹配提示是两条不同文本）
+            (new Regex(@"\$""⚠ \{(.+?)\}: \{(.+?)\}"""),
+                @"$""⚠ {$1}：{$2}"""),
+
+            // 10.1.x：HTTP Local 需要回环地址提示（同一句在两处出现，其中一处嵌套在另一个插值字符串内部，
+            // 靠"整份文件内容级正则替换"天然覆盖嵌套场景，无需特殊处理）
+            (new Regex(@"\$""HTTP Local requires a loopback URL \(\{(.+?)\}\)\."""),
+                @"$""HTTP 本地服务需要回环地址 URL（{$1}）。"""),
+
+            // 10.1.x：Tools 区块 —— 分组标题的"已启用/总数"计数（同一形状出现在三处，变量名不同但literal "title" 相同）
+            (new Regex(@"\$""\{title\} \(\{(.+?)\}/\{(.+?)\}\)"""),
+                @"$""{title}（{$1}/{$2}）"""),
+            // 10.1.x：Tools 区块 —— 分组勾选框 tooltip
+            (new Regex(@"\$""Toggle all tools in \\""\{(.+?)\}\\"" on or off\."""),
+                @"$""开启或关闭 \""{$1}\"" 中的所有工具。"""),
+            // 10.1.x：Tools 区块 —— batch_execute 上限设置 tooltip
+            (new Regex(@"\$""Number of commands allowed per batch_execute call \(1–\{(.+?)\}\)\. Default: \{(.+?)\}\."""),
+                @"$""每次 batch_execute 调用允许的命令数量（1–{$1}）。默认值：{$2}。"""),
+
+            // 10.1.x：Asset Gen 区块 —— 启用某个素材生成服务商的 tooltip
+            (new Regex(@"\$""Enable the \{(.+?)\} provider for asset generation\."""),
+                @"$""启用 {$1} 素材生成服务商。"""),
 
             // 客户端配置 - 传输方式不匹配提示（连接页 transportMismatchText，插值 + 转义引号，跨行拼接）
             // 保留传输方式技术名（stdio / HTTP Local / HTTP Remote）不翻译，只译周围文字。

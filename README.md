@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Unity](https://img.shields.io/badge/Unity-2021.3%20LTS%20~%206.x-black.svg)](https://unity.com/)
-[![unity--mcp](https://img.shields.io/badge/unity--mcp-v10.0.0-orange.svg)](https://github.com/CoplayDev/unity-mcp)
+[![unity--mcp](https://img.shields.io/badge/unity--mcp-v10.x-orange.svg)](https://github.com/CoplayDev/unity-mcp)
 
 给 [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) 编辑器窗口做的**源码级**中文汉化补丁——不是运行时翻译插件，而是直接把中文"烧"进包解析后的 `.uxml` / `.cs` 源文件里。
 
@@ -20,14 +20,14 @@
 
 - ✅ **幂等**：重复应用不会出错、不会重复替换。
 - ✅ **自愈**：`Library` 被清理、项目重新 clone、包因跟踪 `#main` 被 resolve 到新 commit 后，下次 Editor 加载会自动重新打上补丁。
-- ✅ **版本安全**：只有包版本号命中已验证过的版本才会应用替换；版本不匹配会打印警告并整体跳过，绝不做"部分替换"这种半吊子操作，原文保留英文。
+- ✅ **主版本号级兼容**：按主版本号前缀匹配（如 `10.x`），不要求逐字节匹配完整版本号——包持续跟踪 upstream main/beta 分支、版本号随 commit 漂移时也能继续生效；未被字典覆盖的新增文案会原样保留英文，不会报错。
 - ✅ **可回滚**：一键还原成英文原版，首次修改前的原始文件都有备份。
 
 ## 安装使用
 
 ### 前置条件
 
-- 项目已经装好 [`com.coplaydev.unity-mcp`](https://github.com/CoplayDev/unity-mcp)，且版本号在下方「已验证版本」范围内。
+- 项目已经装好 [`com.coplaydev.unity-mcp`](https://github.com/CoplayDev/unity-mcp)，且版本号的主版本号在下方「已验证支持版本」范围内。
 
 ### 安装步骤
 
@@ -54,15 +54,19 @@
 
 ## 已验证支持版本
 
+版本校验按**主版本号前缀**匹配：只要包版本的主版本号（第一个 `.` 之前的数字）与下表任意一条相同，就认为兼容并应用补丁；主版本号真正跳变（如 `10.x` → `11.0.0`）时才需要补充新条目。
+
 | unity-mcp 版本 | 状态 |
 |-|-|
-| `10.0.0` | ✅ 已验证 |
+| `10.0.0` | ✅ 已核对 |
+| `10.1.1-beta.1` | ✅ 已核对（main 分支，10.1.x 系列新增文案已补充） |
+| 其他 `10.x.y[-beta.z]` | ⚙️ 主版本号命中，自动放行；未逐条核对的新增文案会保留英文，欢迎回报补充 |
 
-上游发布新版本后，界面文本可能有变动，直接套用旧字典可能会漏译新增的文案。如果你在新版本上使用，欢迎：
+上游发布新版本后，界面文本可能有变动，直接套用旧字典可能会漏译新增的文案（不会报错，只是保留英文）。如果你在新版本上使用，欢迎：
 
 1. 对比新旧版本 `Editor/Windows` 下的文本差异；
 2. 在 `McpForUnityPatchData.cs` 里补充新增的 `TextMap` / `InterpolatedTemplates` 条目；
-3. 把验证过的新版本号加进 `McpForUnityPatchData.SupportedVersions`；
+3. 只有主版本号真正跳变时才需要把新版本号加进 `McpForUnityPatchData.SupportedVersions`（同大版本内的具体版本号不强制要求逐条列出）；
 4. 提一个 PR 回来，帮到其他人。
 
 ## 工作原理
@@ -70,7 +74,7 @@
 补丁引擎（`McpForUnitySourcePatcher.cs`）只做几件事：
 
 1. 用 `PackageInfo.GetAllRegisteredPackages()` 定位 `com.coplaydev.unity-mcp` 包解析后的物理路径（`resolvedPath`）和当前版本号。
-2. 版本号必须命中 `SupportedVersions`，否则打印警告后直接返回，不碰任何文件。
+2. 版本号的主版本号必须命中 `SupportedVersions` 中任意一条的主版本号（`IsVersionSupported`），否则打印警告后直接返回，不碰任何文件。
 3. 检查幂等标记文件 `.mcp-zh-patched`，已经是当前版本就跳过。
 4. 递归遍历 `Editor/Windows` 下所有 `*.uxml` / `*.cs`：
    - UXML 只替换 `text="..."` / `tooltip="..."` 属性值；
